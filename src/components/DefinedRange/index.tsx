@@ -7,19 +7,28 @@ import InputRangeField from '../InputRangeField';
 import { findNextRangeIndex } from '../../utils';
 
 export type DefinedRangeProps = {
-  inputRanges?: {label: string, range: (value: number) => DateRange, getCurrentValue: (range: DateRange) => number | "-" | "∞"}[],
-  staticRanges?: {label: string, range: () => DateRange, isSelected: (value: DateRange) => boolean, hasCustomRendering?: boolean}[],
-  ranges?: DateRange[],
-  className?: string,
-  headerContent?: ReactElement,
-  footerContent?: ReactElement,
-  focusedRange?: number[],
-  rangeColors?: string[],
-  focusNextRangeOnDefinedRangeClick?: boolean,
-  onPreviewChange?: (value?: DateRange) => void,
-  onChange?: (value: {[x: string]: DateRange}) => void,
-  renderStaticRangeLabel?: (staticRange: DefinedRangeProps["staticRanges"][number]) => ReactElement
-  onRangeFocusChange?: (range: number[]) => void,
+  inputRanges?: {
+    label: string;
+    range: (value: number | string) => DateRange;
+    getCurrentValue: (range: DateRange) => number | '' | '-' | '∞';
+  }[];
+  staticRanges?: {
+    label: string;
+    range: () => DateRange;
+    isSelected: (value: DateRange) => boolean;
+    hasCustomRendering?: boolean;
+  }[];
+  ranges?: DateRange[];
+  className?: string;
+  headerContent?: ReactElement;
+  footerContent?: ReactElement;
+  focusedRange?: number[];
+  rangeColors?: string[];
+  focusNextRangeOnDefinedRangeClick?: boolean;
+  onPreviewChange?: (value?: DateRange) => void;
+  onChange?: (value: { [x: string]: DateRange }) => void;
+  renderStaticRangeLabel?: (staticRange: DefinedRangeProps['staticRanges'][number]) => ReactElement;
+  onRangeFocusChange?: (range: number[]) => void;
 };
 
 export default function DefinedRange({
@@ -37,100 +46,103 @@ export default function DefinedRange({
   renderStaticRangeLabel,
   onRangeFocusChange
 }: DefinedRangeProps) {
+  const [state, setState] = React.useState({ rangeOffset: 0, focusedInput: -1 });
 
-  const [state, setState] = React.useState({rangeOffset: 0, focusedInput: -1});
-
-  const getSelectedRange = (ranges: DateRange[], staticRange: DefinedRangeProps["staticRanges"][number]) => {
-    const focusedRangeIndex = ranges.findIndex(range => {
+  const getSelectedRange = (ranges: DateRange[], staticRange: DefinedRangeProps['staticRanges'][number]) => {
+    const focusedRangeIndex = ranges.findIndex((range) => {
       if (!range.startDate || !range.endDate || range.disabled) {
         return false;
       }
 
       return staticRange.isSelected(range);
-    })
+    });
 
     const selectedRange = ranges[focusedRangeIndex];
     return { selectedRange, focusedRangeIndex };
-
-  }
+  };
 
   const handleRangeChange = (range: DateRange) => {
+    if (range === null) return;
     const selectedRange = ranges[focusedRange[0]];
 
-    if (!onChange || !selectedRange) {
+    if (!onChange || !selectedRange || !range) {
       return;
     }
 
     onChange({
-      [selectedRange.key || `range${focusedRange[0] + 1}`]: { ...selectedRange, ...range },
+      [selectedRange.key || `range${focusedRange[0] + 1}`]: { ...selectedRange, ...range }
     });
 
     if (focusNextRangeOnDefinedRangeClick) {
       const nextFocusRange = [findNextRangeIndex(ranges, focusedRange[0]), 0];
       onRangeFocusChange?.(nextFocusRange);
     }
-  }
+  };
 
   const getRangeOptionValue = (option: DefinedRangeProps['inputRanges'][number]) => {
     if (typeof option.getCurrentValue !== 'function') {
       return '';
     }
 
-    const selectedRange = ranges[focusedRange[0]] || {startDate: new Date(), endDate: new Date()};
-    return (option.getCurrentValue(selectedRange) || '');
-  }
+    const selectedRange = ranges[focusedRange[0]] || { startDate: new Date(), endDate: new Date() };
+    const currentValue = option.getCurrentValue(selectedRange);
+
+    return currentValue === null || currentValue === undefined ? '' : currentValue;
+  };
 
   return (
     <div className={classnames(styles.definedRangesWrapper, className)}>
       {headerContent}
       <div className={styles.staticRanges}>
-        {
-          staticRanges.map((staticRange, i) => {
-            const { selectedRange, focusedRangeIndex } = getSelectedRange(ranges, staticRange);
+        {staticRanges.map((staticRange, i) => {
+          const { selectedRange, focusedRangeIndex } = getSelectedRange(ranges, staticRange);
 
-            let labelContent: string | ReactElement = "";
+          let labelContent: string | ReactElement = '';
 
-            if (staticRange.hasCustomRendering) {
-              labelContent = renderStaticRangeLabel(staticRange);
-            } else {
-              labelContent = staticRange.label;
-            }
+          if (staticRange.hasCustomRendering) {
+            labelContent = renderStaticRangeLabel(staticRange);
+          } else {
+            labelContent = staticRange.label;
+          }
 
-            return (
-              <button
+          return (
+            <button
               type="button"
               className={classnames(styles.staticRange, {
                 [styles.staticRangeSelected]: Boolean(selectedRange)
               })}
               style={{
-                color: selectedRange ? (selectedRange.color || rangeColors[focusedRangeIndex]) : null
+                color: selectedRange ? selectedRange.color || rangeColors[focusedRangeIndex] : null
               }}
               key={i}
               onClick={() => handleRangeChange(staticRange.range())}
               onFocus={() => onPreviewChange && onPreviewChange(staticRange.range())}
-              onMouseOver={() =>onPreviewChange && onPreviewChange(staticRange.range())}
+              onMouseOver={() => onPreviewChange && onPreviewChange(staticRange.range())}
               onMouseLeave={() => onPreviewChange && onPreviewChange()}
-              >
-                <span tabIndex={-1} className={styles.staticRangeLabel}>{labelContent}</span>
-              </button>
-            )
-          })
-        }
+            >
+              <span tabIndex={-1} className={styles.staticRangeLabel}>
+                {labelContent}
+              </span>
+            </button>
+          );
+        })}
       </div>
       <div className={styles.inputRanges}>
-          {inputRanges.map((rangeOption, i) => (
-            <InputRangeField
-              key={i}
-              styles={styles}
-              label={rangeOption.label}
-              onFocus={() => setState({ focusedInput: i, rangeOffset: 0 })}
-              onBlur={() => setState({...state, rangeOffset: 0 })}
-              onChange={value => handleRangeChange(rangeOption.range(value))}
-              value={getRangeOptionValue(rangeOption)}
-            />
-          ))}
-        </div>
+        {inputRanges.map((rangeOption, i) => (
+          <InputRangeField
+            key={i}
+            styles={styles}
+            label={rangeOption.label}
+            onFocus={() => setState({ focusedInput: i, rangeOffset: 0 })}
+            onBlur={() => setState({ ...state, rangeOffset: 0 })}
+            onChange={(value) => {
+              handleRangeChange(rangeOption.range(value));
+            }}
+            value={getRangeOptionValue(rangeOption) ?? ''}
+          />
+        ))}
+      </div>
       {footerContent}
     </div>
-  )
+  );
 }
